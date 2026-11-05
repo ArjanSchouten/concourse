@@ -65,6 +65,7 @@ module Concourse exposing
     , decodeInstanceGroupId
     , decodeInstanceVars
     , decodeJob
+    , decodeJobInput
     , decodeJsonValue
     , decodeMetadata
     , decodePipeline
@@ -1004,6 +1005,7 @@ type alias JobInput =
     , resource : String
     , passed : List String
     , trigger : Bool
+    , newVersion : Bool
     }
 
 
@@ -1067,6 +1069,7 @@ encodeJobInput jobInput =
         , ( "resource", jobInput.resource |> Json.Encode.string )
         , ( "passed", jobInput.passed |> Json.Encode.list Json.Encode.string )
         , ( "trigger", jobInput.trigger |> Json.Encode.bool )
+        , ( "new_version", jobInput.newVersion |> Json.Encode.bool )
         ]
 
 
@@ -1077,6 +1080,7 @@ decodeJobInput =
         |> andMap (Json.Decode.field "resource" Json.Decode.string)
         |> andMap (defaultTo [] <| Json.Decode.field "passed" <| Json.Decode.list Json.Decode.string)
         |> andMap (defaultTo False <| Json.Decode.field "trigger" Json.Decode.bool)
+        |> andMap (defaultTo False <| Json.Decode.field "new_version" Json.Decode.bool)
 
 
 encodeJobOutput : JobOutput -> Json.Encode.Value

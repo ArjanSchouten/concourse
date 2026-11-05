@@ -38,6 +38,11 @@ Graph.prototype.removeNode = function(id) {
   delete this._nodes[id];
 }
 
+Graph.prototype.edge = function(sourceId, targetId) {
+  var target = this._nodes[targetId];
+  return target._inEdges.find(function(e) { return e.source.node.id == sourceId; });
+};
+
 Graph.prototype.addEdge = function(sourceId, targetId, key, customData) {
   var source = this._nodes[sourceId];
   if (source === undefined) {

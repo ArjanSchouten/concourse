@@ -101,6 +101,7 @@ svg.pipeline-graph {
   .edge.aborted { stroke: @brown-primary; }
   .edge.paused { stroke: @blue-primary; }
   .edge.trigger-false { stroke-dasharray: 5, 5; }
+  .edge.new-version path { stroke-opacity: 0; }
   .node a {
     cursor: pointer;
   }
@@ -115,4 +116,15 @@ svg.pipeline-graph {
       stroke-width: 4px;
     }
   }
+
+  // After .edge.active so hovering doesn't thicken the chevrons.
+  .edge path.new-version-marker {
+    stroke-opacity: 1;
+    stroke-dasharray: none;
+    stroke-width: 1.25px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .edge.active path.new-version-marker { stroke-width: 2px; }
 }

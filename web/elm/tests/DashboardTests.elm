@@ -2218,6 +2218,7 @@ circularJobs =
               , resource = "res0"
               , passed = [ "jobB" ]
               , trigger = True
+              , newVersion = False
               }
             ]
       , outputs = []
@@ -2269,6 +2270,7 @@ circularJobs =
               , resource = "res0"
               , passed = [ "jobA" ]
               , trigger = True
+              , newVersion = False
               }
             ]
       , outputs = []

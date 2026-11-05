@@ -28,6 +28,34 @@ all =
                     |> Concourse.encodeJob
                     |> Json.Decode.decodeValue Concourse.decodeJob
                     |> Expect.equal (Ok job)
+        , test "job input encoding/decoding keeps new version" <|
+            \_ ->
+                let
+                    job =
+                        Data.job 1
+                            |> (\j ->
+                                    { j
+                                        | inputs =
+                                            [ { name = "app"
+                                              , resource = "app"
+                                              , passed = [ "deploy-acc" ]
+                                              , trigger = False
+                                              , newVersion = True
+                                              }
+                                            ]
+                                    }
+                               )
+                in
+                job
+                    |> Concourse.encodeJob
+                    |> Json.Decode.decodeValue Concourse.decodeJob
+                    |> Expect.equal (Ok job)
+        , test "job input new version defaults to false" <|
+            \_ ->
+                """{"name":"app","resource":"app"}"""
+                    |> Json.Decode.decodeString Concourse.decodeJobInput
+                    |> Result.map .newVersion
+                    |> Expect.equal (Ok False)
         , test "resource encoding/decoding are inverses" <|
             \_ ->
                 let

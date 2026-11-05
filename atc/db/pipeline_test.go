@@ -1321,6 +1321,107 @@ var _ = Describe("Pipeline", func() {
 				Trigger:  true,
 			}))
 		})
+
+		Describe("input new version", func() {
+			var scenario *dbtest.Scenario
+
+			v1 := atc.Version{"version": "v1"}
+			v2 := atc.Version{"version": "v2"}
+
+			BeforeEach(func() {
+				scenario = dbtest.Setup(
+					builder.WithPipeline(atc.Config{
+						Jobs: atc.JobConfigs{
+							{
+								Name: "some-job",
+								PlanSequence: []atc.Step{
+									{Config: &atc.GetStep{Name: "app", Resource: "some-resource"}},
+									{Config: &atc.GetStep{Name: "lib", Resource: "some-resource"}},
+								},
+							},
+						},
+						Resources: atc.ResourceConfigs{
+							{Name: "some-resource", Type: "some-base-resource-type"},
+						},
+					}),
+					builder.WithResourceVersions("some-resource", time.Minute, v1, v2),
+				)
+			})
+
+			finishedBuildWith := func(app, lib atc.Version) {
+				var build db.Build
+				scenario.Run(builder.WithJobBuild(&build, "some-job", dbtest.JobInputs{
+					{Name: "app", Version: app},
+					{Name: "lib", Version: lib},
+				}, dbtest.JobOutputs{}))
+				Expect(build.Finish(db.BuildStatusSucceeded)).To(Succeed())
+			}
+
+			nextInputs := func(app, lib atc.Version, resolveError string) {
+				scenario.Run(builder.WithNextInputMapping("some-job", dbtest.JobInputs{
+					{Name: "app", Version: app, ResolveError: resolveError},
+					{Name: "lib", Version: lib},
+				}))
+			}
+
+			newVersions := func() map[string]bool {
+				dashboard, err := scenario.Pipeline.Dashboard()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dashboard).To(HaveLen(1))
+
+				result := map[string]bool{}
+				for _, input := range dashboard[0].Inputs {
+					result[input.Name] = input.NewVersion
+				}
+				return result
+			}
+
+			It("reports every input when the job has never run", func() {
+				nextInputs(v1, v1, "")
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": true, "lib": true}))
+			})
+
+			It("reports only the inputs whose next version differs from the last build", func() {
+				finishedBuildWith(v1, v1)
+				nextInputs(v2, v1, "")
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": true, "lib": false}))
+			})
+
+			It("reports nothing when the next build would use the same versions", func() {
+				finishedBuildWith(v1, v1)
+				nextInputs(v1, v1, "")
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": false, "lib": false}))
+			})
+
+			It("reports nothing when the next build inputs could not be determined", func() {
+				finishedBuildWith(v1, v1)
+				nextInputs(v2, v1, "some-error")
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": false, "lib": false}))
+			})
+
+			It("reports nothing while a build is pending or running", func() {
+				finishedBuildWith(v1, v1)
+				nextInputs(v2, v1, "")
+				var pending db.Build
+				scenario.Run(builder.WithPendingJobBuild(&pending, "some-job"))
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": false, "lib": false}))
+			})
+
+			It("ignores a last build that ended before recording inputs", func() {
+				finishedBuildWith(v1, v1)
+				var aborted db.Build
+				scenario.Run(builder.WithPendingJobBuild(&aborted, "some-job"))
+				Expect(aborted.Finish(db.BuildStatusAborted)).To(Succeed())
+				nextInputs(v2, v1, "")
+
+				Expect(newVersions()).To(Equal(map[string]bool{"app": true, "lib": false}))
+			})
+		})
 	})
 
 	Describe("DeleteBuildEventsByBuildIDs", func() {

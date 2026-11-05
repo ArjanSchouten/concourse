@@ -477,13 +477,29 @@ func (d dashboardFactory) constructJobsForDashboard() ([]atc.JobSummary, error) 
 }
 
 func (d dashboardFactory) fetchJobInputs() (map[int][]atc.JobInputSummary, error) {
-	rows, err := psql.Select("j.id", "i.name", "r.name", "array_remove(array_agg(jp.name ORDER BY jp.id), NULL) passed", "i.trigger").
+	rows, err := psql.Select("j.id", "i.name", "r.name", "array_remove(array_agg(jp.name ORDER BY jp.id), NULL) passed", "i.trigger",
+		// next_build_inputs.first_occurrence goes stale once a build uses the
+		// version, so compare against the last build's inputs instead.
+		`COALESCE(bool_or(
+			j.inputs_determined AND j.next_build_id IS NULL AND nbi.version_digest IS NOT NULL
+			AND bi.build_id IS NULL
+		), false)`).
 		From("job_inputs i").
 		Join("jobs j ON j.id = i.job_id").
 		Join("pipelines p ON p.id = j.pipeline_id").
 		Join("teams tm ON tm.id = p.team_id").
 		Join("resources r ON r.id = i.resource_id").
 		LeftJoin("jobs jp ON jp.id = i.passed_job_id").
+		LeftJoin("next_build_inputs nbi ON nbi.job_id = i.job_id AND nbi.input_name = i.name").
+		// Aborted or errored builds can finish without recording any inputs.
+		LeftJoin(`LATERAL (
+			SELECT b.id FROM builds b
+			WHERE b.job_id = j.id AND b.completed AND b.rerun_of IS NULL
+			AND EXISTS (SELECT 1 FROM build_resource_config_version_inputs x WHERE x.build_id = b.id)
+			ORDER BY b.id DESC LIMIT 1
+		) lb ON true`).
+		LeftJoin(`build_resource_config_version_inputs bi ON bi.build_id = lb.id AND bi.name = i.name
+			AND bi.resource_id = nbi.resource_id AND bi.version_digest = nbi.version_digest`).
 		Where(sq.Eq{
 			"j.active": true,
 		}).
@@ -503,9 +519,9 @@ func (d dashboardFactory) fetchJobInputs() (map[int][]atc.JobInputSummary, error
 		var passed []string
 		var inputName, resourceName string
 		var jobID int
-		var trigger bool
+		var trigger, newVersion bool
 
-		err = rows.Scan(&jobID, &inputName, &resourceName, m.SQLScanner(&passed), &trigger)
+		err = rows.Scan(&jobID, &inputName, &resourceName, m.SQLScanner(&passed), &trigger, &newVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -515,10 +531,11 @@ func (d dashboardFactory) fetchJobInputs() (map[int][]atc.JobInputSummary, error
 		}
 
 		jobInputs[jobID] = append(jobInputs[jobID], atc.JobInputSummary{
-			Name:     inputName,
-			Resource: resourceName,
-			Trigger:  trigger,
-			Passed:   passed,
+			Name:       inputName,
+			Resource:   resourceName,
+			Trigger:    trigger,
+			Passed:     passed,
+			NewVersion: newVersion,
 		})
 	}
 

@@ -701,6 +701,7 @@ jobsWithDepth pipelineID depth =
                   , resource = ""
                   , passed = []
                   , trigger = False
+                  , newVersion = False
                   }
                 ]
           }
@@ -714,6 +715,7 @@ jobsWithDepth pipelineID depth =
                   , resource = ""
                   , passed = [ String.fromInt <| depth - 1 ]
                   , trigger = False
+                  , newVersion = False
                   }
                 ]
         }

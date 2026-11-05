@@ -52,6 +52,9 @@ type JobInputSummary struct {
 	Resource string   `json:"resource"`
 	Passed   []string `json:"passed,omitempty"`
 	Trigger  bool     `json:"trigger,omitempty"`
+
+	// A build triggered now would use a different version than the last build.
+	NewVersion bool `json:"new_version,omitempty"`
 }
 
 type JobOutputSummary struct {

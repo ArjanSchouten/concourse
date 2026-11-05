@@ -52,6 +52,9 @@ function redrawFunction(svg, jobs, resources, newUrl) {
     svgEdges.each(function (edge, i, nodes) {
       if (edge.customData !== null && edge.customData.trigger !== true) {
         d3.select(this).classed("trigger-false", true);
+        if (edge.customData.newInputs.length > 0) {
+          d3.select(this).classed("new-version", true);
+        }
       }
     });
 
@@ -298,6 +301,12 @@ function redrawFunction(svg, jobs, resources, newUrl) {
       })
       .on("mouseover", highlight)
       .on("mouseout", lowlight);
+
+    svgEdge
+      .filter(".new-version")
+      .each(function (edge) {
+        drawNewVersionMarker(d3.select(this), edge);
+      });
 
     let first = true;
     let minX, minY, maxX, maxY;
@@ -650,9 +659,7 @@ function createGraph(svg, jobs, resources) {
             sourceNode = sourceInputNode;
           }
 
-          graph.addEdge(sourceNode, id, input.resource, {
-            trigger: input.trigger,
-          });
+          addInputEdge(graph, sourceNode, id, input);
         }
       }
     }
@@ -693,7 +700,7 @@ function createGraph(svg, jobs, resources) {
           );
         }
 
-        graph.addEdge(inputId, id, input.resource, { trigger: input.trigger });
+        addInputEdge(graph, inputId, id, input);
       }
     }
   }
@@ -703,6 +710,24 @@ function createGraph(svg, jobs, resources) {
   graph.addSpacingNodes();
 
   return graph;
+}
+
+// Inputs sharing a resource share one edge, so collect every input with a
+// new version on it instead of keeping only the first.
+function addInputEdge(graph, sourceId, targetId, input) {
+  const newInputs = input.new_version ? [input.name] : [];
+  const existing = graph.edge(sourceId, targetId);
+  if (existing) {
+    existing.customData = {
+      ...existing.customData,
+      newInputs: existing.customData.newInputs.concat(newInputs),
+    };
+    return;
+  }
+  graph.addEdge(sourceId, targetId, input.resource, {
+    trigger: input.trigger,
+    newInputs: newInputs,
+  });
 }
 
 export function addIcon(iconName, nodeId) {
@@ -764,4 +789,39 @@ function outputNode(jobName, resourceName) {
 
 function inputNode(jobName, resourceName) {
   return "job-" + jobName + "-input-" + resourceName;
+}
+
+// Chevrons replace the dashes: a manual trigger would fetch a version the
+// target job hasn't used in its last build.
+function drawNewVersionMarker(edgeGroup, edge) {
+  const line = edgeGroup.select("path").node();
+  const length = line.getTotalLength();
+  const count = 5;
+  const half = 1.75;
+  const spread = 1.75;
+
+  let d = "";
+  for (let i = 0; i < count; i++) {
+    const at = (length * (i + 0.5)) / count;
+    const p = line.getPointAtLength(at);
+    const q = line.getPointAtLength(Math.min(at + 1, length));
+    const angle = Math.atan2(q.y - p.y, q.x - p.x);
+    const [dx, dy] = [Math.cos(angle), Math.sin(angle)];
+    const [nx, ny] = [-dy, dx];
+    d +=
+      "M" + (p.x - dx * half + nx * spread) + "," + (p.y - dy * half + ny * spread) +
+      " L" + (p.x + dx * half) + "," + (p.y + dy * half) +
+      " L" + (p.x - dx * half - nx * spread) + "," + (p.y - dy * half - ny * spread);
+  }
+
+  const label =
+    "New version of " + edge.customData.newInputs.join(", ") +
+    " for " + edge.target.node.name;
+  d3.select(line).append("title").text(label);
+  edgeGroup
+    .append("path")
+    .attr("class", "new-version-marker")
+    .attr("d", d)
+    .attr("role", "img")
+    .attr("aria-label", label);
 }

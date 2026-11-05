@@ -898,6 +898,7 @@ sampleJob name passed =
           , resource = "resource"
           , passed = passed
           , trigger = True
+          , newVersion = False
           }
         ]
     , outputs = []
