@@ -361,5 +361,5 @@ func requestScheduleForJobsUsingResourceConfigScope(tx Tx, rcsID int) error {
 		}
 	}
 
-	return nil
+	return notifyScheduler(tx)
 }

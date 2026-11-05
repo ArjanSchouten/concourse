@@ -1302,6 +1302,18 @@ var _ = Describe("Resource", func() {
 				Expect(scenario.Job("job-using-resource").ScheduleRequestedTime()).Should(BeTemporally(">", requestedSchedule))
 			})
 
+			It("wakes the scheduler", func() {
+				notified, err := dbConn.Bus().Listen(atc.ComponentScheduler, 1)
+				Expect(err).ToNot(HaveOccurred())
+				defer dbConn.Bus().Unlisten(atc.ComponentScheduler, notified)
+
+				found, err := scenario.Resource("some-resource").PinVersion(scenario.ResourceVersion("some-resource", atc.Version{"version": "v1"}).ID())
+				Expect(found).To(BeTrue())
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(notified).Should(Receive())
+			})
+
 			It("does not request schedule on jobs that do not use the resource", func() {
 				requestedSchedule := scenario.Job("not-using-resource").ScheduleRequestedTime()
 

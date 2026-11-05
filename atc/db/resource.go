@@ -1154,7 +1154,7 @@ func requestScheduleForJobsUsingResource(tx Tx, resourceID int) error {
 		return err
 	}
 
-	return nil
+	return notifyScheduler(tx)
 }
 
 // this allows us to reuse getCausalityResourceVersions to construct both upstream and downstream trees by passing in a different updater fn

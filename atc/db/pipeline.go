@@ -1334,7 +1334,7 @@ func requestScheduleForJobsInPipeline(tx Tx, pipelineID int) error {
 		return err
 	}
 
-	return nil
+	return notifyScheduler(tx)
 }
 
 func clearConfigForPipelineObject(tx Tx, pipelineID int, tableName string) error {

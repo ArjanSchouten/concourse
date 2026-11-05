@@ -419,6 +419,25 @@ var _ = Describe("Build", func() {
 		})
 	})
 
+	Describe("Finish notifying the scheduler", func() {
+		It("wakes the scheduler so downstream inputs are recomputed right away", func() {
+			scenario := dbtest.Setup(
+				builder.WithPipeline(atc.Config{
+					Jobs: atc.JobConfigs{{Name: "some-job"}},
+				}),
+			)
+			build, err := scenario.Job("some-job").CreateBuild("someone")
+			Expect(err).NotTo(HaveOccurred())
+
+			notified, err := dbConn.Bus().Listen(atc.ComponentScheduler, 1)
+			Expect(err).NotTo(HaveOccurred())
+			defer dbConn.Bus().Unlisten(atc.ComponentScheduler, notified)
+
+			Expect(build.Finish(db.BuildStatusSucceeded)).To(Succeed())
+			Eventually(notified).Should(Receive())
+		})
+	})
+
 	Describe("Finish", func() {
 		var scenario *dbtest.Scenario
 		var build db.Build

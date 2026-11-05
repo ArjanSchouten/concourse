@@ -1477,7 +1477,14 @@ func requestSchedule(tx Tx, jobID int) error {
 		return NonOneRowAffectedError{rowsAffected}
 	}
 
-	return nil
+	return notifyScheduler(tx)
+}
+
+// Postgres delivers NOTIFY on commit, so the scheduler runs right away
+// instead of on its next tick and never before the request is visible.
+func notifyScheduler(tx Tx) error {
+	_, err := tx.Exec("NOTIFY " + atc.ComponentScheduler)
+	return err
 }
 
 // The SELECT query orders the jobs for updating to prevent deadlocking.
@@ -1519,5 +1526,5 @@ func requestScheduleOnDownstreamJobs(tx Tx, jobID int) error {
 		return err
 	}
 
-	return nil
+	return notifyScheduler(tx)
 }
